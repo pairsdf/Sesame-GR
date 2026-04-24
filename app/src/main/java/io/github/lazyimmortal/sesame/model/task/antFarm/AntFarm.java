@@ -1510,8 +1510,9 @@ public class AntFarm extends ModelTask {
                     Log.farm("使用道具🎭[" + toolType.nickName() + "]#剩余" + (toolCount - 1) + "张");
                     return true;
                 }
-                else if (Objects.equals("3D16", jo.getString("resultCode"))) {
+                else if (Objects.equals("3D16", jo.optString("resultCode"))) {
                     Status.flagToday("farm::useFarmToolLimit::" + toolType);
+                    Log.i(TAG, "useFarmTool err: " + jo.optString("resultCode"));
                 }
                 break;
             }
