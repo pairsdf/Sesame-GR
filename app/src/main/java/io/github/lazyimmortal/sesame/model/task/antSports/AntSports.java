@@ -236,7 +236,7 @@ public class AntSports extends ModelTask {
                         Method syncStepMethod = null;
                         for (Method m : rpcInstance.getClass().getDeclaredMethods()) {
                             Class<?>[] params = m.getParameterTypes();
-                            if (params.length == 3 && params[0] == int.class && params[1] == Boolean.class && params[2] == String.class) {
+                            if (params.length == 3 && params[0] == int.class && params[1] == boolean.class && params[2] == String.class) {
                                 syncStepMethod = m;
                                 break;
                             }
@@ -251,7 +251,7 @@ public class AntSports extends ModelTask {
                             return;
                         }
                         syncStepMethod.setAccessible(true);
-                        if ((Boolean) syncStepMethod.invoke(rpcInstance, step, Boolean.FALSE, "system")) {
+                        if ((Boolean) syncStepMethod.invoke(rpcInstance, step, false, "system")) {
                             Toast.show("同步步数🏃🏻‍♂️[" + step + "步]");
                             Log.other("同步步数🏃🏻‍♂️[" + step + "步]#[" + UserIdMap.getShowName(UserIdMap.getCurrentUid()) + "]");
                             Status.flagToday("sport::syncStep");
