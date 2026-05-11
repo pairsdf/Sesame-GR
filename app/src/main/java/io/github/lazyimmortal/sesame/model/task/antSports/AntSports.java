@@ -3,6 +3,8 @@ package io.github.lazyimmortal.sesame.model.task.antSports;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -182,7 +184,36 @@ public class AntSports extends ModelTask {
                     int step = tmpStepCount();
                     try {
                         ClassLoader classLoader = ApplicationHook.getClassLoader();
-                        if ((Boolean) XposedHelpers.callMethod(XposedHelpers.callStaticMethod(classLoader.loadClass("com.alibaba.health.pedometer.intergation.rpc.RpcManager"), "a"), "a", new Object[]{step, Boolean.FALSE, "system"})) {
+                        Class<?> rpcManagerClass = classLoader.loadClass("com.alibaba.health.pedometer.intergation.rpc.RpcManager");
+                        // 通过反射查找静态无参方法（获取实例），避免混淆名变化导致 NoSuchMethodError
+                        Method getInstanceMethod = null;
+                        for (Method m : rpcManagerClass.getDeclaredMethods()) {
+                            if (Modifier.isStatic(m.getModifiers()) && m.getParameterCount() == 0) {
+                                getInstanceMethod = m;
+                                break;
+                            }
+                        }
+                        if (getInstanceMethod == null) {
+                            Log.record("同步步数失败: RpcManager无静态无参方法");
+                            return;
+                        }
+                        getInstanceMethod.setAccessible(true);
+                        Object rpcInstance = getInstanceMethod.invoke(null);
+                        // 通过反射查找实例方法（int, Boolean, String 参数），避免混淆名变化
+                        Method syncStepMethod = null;
+                        for (Method m : rpcInstance.getClass().getDeclaredMethods()) {
+                            Class<?>[] params = m.getParameterTypes();
+                            if (params.length == 3 && params[0] == int.class && params[1] == Boolean.class && params[2] == String.class) {
+                                syncStepMethod = m;
+                                break;
+                            }
+                        }
+                        if (syncStepMethod == null) {
+                            Log.record("同步步数失败: 未找到匹配的同步步数方法");
+                            return;
+                        }
+                        syncStepMethod.setAccessible(true);
+                        if ((Boolean) syncStepMethod.invoke(rpcInstance, step, Boolean.FALSE, "system")) {
                             Toast.show("同步步数🏃🏻‍♂️[" + step + "步]");
                             Log.other("同步步数🏃🏻‍♂️[" + step + "步]#[" + UserIdMap.getShowName(UserIdMap.getCurrentUid()) + "]");
                             Status.flagToday("sport::syncStep");
