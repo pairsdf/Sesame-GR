@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Objects;
@@ -185,20 +186,52 @@ public class AntSports extends ModelTask {
                     try {
                         ClassLoader classLoader = ApplicationHook.getClassLoader();
                         Class<?> rpcManagerClass = classLoader.loadClass("com.alibaba.health.pedometer.intergation.rpc.RpcManager");
-                        // 通过反射查找静态无参方法（获取实例），避免混淆名变化导致 NoSuchMethodError
-                        Method getInstanceMethod = null;
-                        for (Method m : rpcManagerClass.getDeclaredMethods()) {
-                            if (Modifier.isStatic(m.getModifiers()) && m.getParameterCount() == 0) {
-                                getInstanceMethod = m;
+                        Object rpcInstance = null;
+                        // 策略1: 查找静态字段（单例模式，如 INSTANCE/instance 等）
+                        for (java.lang.reflect.Field f : rpcManagerClass.getDeclaredFields()) {
+                            if (Modifier.isStatic(f.getModifiers()) && f.getType().isAssignableFrom(rpcManagerClass)) {
+                                f.setAccessible(true);
+                                rpcInstance = f.get(null);
+                                Log.record("同步步数: 通过静态字段[" + f.getName() + "]获取RpcManager实例");
                                 break;
                             }
                         }
-                        if (getInstanceMethod == null) {
-                            Log.record("同步步数失败: RpcManager无静态无参方法");
-                            return;
+                        // 策略2: 查找静态方法返回RpcManager类型（含参数方法，尝试无参调用）
+                        if (rpcInstance == null) {
+                            for (Method m : rpcManagerClass.getDeclaredMethods()) {
+                                if (Modifier.isStatic(m.getModifiers()) && m.getReturnType().isAssignableFrom(rpcManagerClass)) {
+                                    try {
+                                        m.setAccessible(true);
+                                        if (m.getParameterCount() == 0) {
+                                            rpcInstance = m.invoke(null);
+                                            Log.record("同步步数: 通过静态无参方法[" + m.getName() + "]获取RpcManager实例");
+                                            break;
+                                        }
+                                    } catch (Exception ignored) {}
+                                }
+                            }
                         }
-                        getInstanceMethod.setAccessible(true);
-                        Object rpcInstance = getInstanceMethod.invoke(null);
+                        // 策略3: 直接实例化
+                        if (rpcInstance == null) {
+                            try {
+                                rpcInstance = rpcManagerClass.getDeclaredConstructor().newInstance();
+                                Log.record("同步步数: 通过直接实例化获取RpcManager实例");
+                            } catch (Exception e) {
+                                Log.record("同步步数失败: 无法获取RpcManager实例");
+                                // 输出调试信息
+                                StringBuilder sb = new StringBuilder("RpcManager方法列表: ");
+                                for (Method m : rpcManagerClass.getDeclaredMethods()) {
+                                    sb.append(m.getName()).append(m.getParameterCount()).append("; ");
+                                }
+                                Log.record(sb.toString());
+                                sb = new StringBuilder("RpcManager字段列表: ");
+                                for (java.lang.reflect.Field f : rpcManagerClass.getDeclaredFields()) {
+                                    sb.append(f.getName()).append("(").append(f.getType().getSimpleName()).append("); ");
+                                }
+                                Log.record(sb.toString());
+                                return;
+                            }
+                        }
                         // 通过反射查找实例方法（int, Boolean, String 参数），避免混淆名变化
                         Method syncStepMethod = null;
                         for (Method m : rpcInstance.getClass().getDeclaredMethods()) {
@@ -210,6 +243,11 @@ public class AntSports extends ModelTask {
                         }
                         if (syncStepMethod == null) {
                             Log.record("同步步数失败: 未找到匹配的同步步数方法");
+                            StringBuilder sb = new StringBuilder("RpcManager实例方法列表: ");
+                            for (Method m : rpcInstance.getClass().getDeclaredMethods()) {
+                                sb.append(m.getName()).append(Arrays.toString(m.getParameterTypes())).append("; ");
+                            }
+                            Log.record(sb.toString());
                             return;
                         }
                         syncStepMethod.setAccessible(true);
