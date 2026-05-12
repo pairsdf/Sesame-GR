@@ -1369,8 +1369,8 @@ public class AntFarm extends ModelTask {
     private Boolean receiveFarmTaskAward(JSONObject task) {
         try {
             String taskId = task.getString("taskId");
-            String awardType = task.getString("awardType");
-            int awardCount = task.getInt("awardCount");
+            String awardType = task.optString("awardType");
+            int awardCount = task.optInt("awardCount");
             if (Objects.equals(awardType, "ALLPURPOSE")) {
                 if (awardCount + foodStock > foodStockLimit) {
                     unReceiveTaskAward++;
